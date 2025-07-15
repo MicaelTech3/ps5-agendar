@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel de Sessões PS5</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #001c40;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .title {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 10px 0 30px;
+      text-align: center;
+      color: #00ffc3;
+    }
+
+    .card {
+      background-color: #012a63;
+      padding: 20px;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 0 10px rgba(0, 255, 195, 0.3);
+    }
+
+    .info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      font-size: 1.2rem;
+    }
+
+    .status {
+      font-size: 2rem;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .countdown {
+      font-size: 3rem;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .qr {
+      margin-top: 30px;
+    }
+
+    .qr img {
+      width: 140px;
+      height: 140px;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="title">🎮 Sessões PS5 • Ao Vivo</div>
+  <div class="card" id="painel">
+    <div class="info">
+      <div><strong>Próximo:</strong> <span id="nome">---</span></div>
+      <div><strong>Horário:</strong> <span id="horario">--:--</span></div>
+    </div>
+    <div class="info">
+      <div><strong>Local:</strong> <span id="local">---</span></div>
+      <div><strong>Status:</strong> <span id="status">Aguardando...</span></div>
+    </div>
+    <div class="countdown" id="cronometro">⏳ --:--</div>
+  </div>
+
+  <div class="qr">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?data=https://seudominio.com.br/agendamento&size=150x150" alt="QR Code">
+  </div>
+
+      <p>Agende seu horário</p>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAmKEvmYmAglgxazFIcpSWw6QHzASyJin4",
+      authDomain: "ps5-agenda.firebaseapp.com",
+      databaseURL: "https://ps5-agenda-default-rtdb.firebaseio.com",
+      projectId: "ps5-agenda",
+      storageBucket: "ps5-agenda.appspot.com",
+      messagingSenderId: "6232773262",
+      appId: "1:6232773262:web:79194fb61c8b43b1556fdf"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const nomeEl = document.getElementById("nome");
+    const horarioEl = document.getElementById("horario");
+    const localEl = document.getElementById("local");
+    const statusEl = document.getElementById("status");
+    const cronometroEl = document.getElementById("cronometro");
+
+    let horarios = [];
+    let tempoSessao = 17;
+
+    async function carregarConfig() {
+      const snap = await get(ref(db, "config"));
+      if (snap.exists()) {
+        const config = snap.val();
+        horarios = [...(config.horariosManha || []), ...(config.horariosTarde || [])];
+        tempoSessao = config.tempoSessao || 17;
+      }
+    }
+
+    function parseHora(hora) {
+      const [h, m] = hora.split(":").map(Number);
+      const now = new Date();
+      const target = new Date();
+      target.setHours(h, m, 0, 0);
+      return target;
+    }
+
+    function startCountdown(tempo, callback) {
+      let tempoRestante = tempo;
+      const timer = setInterval(() => {
+        const minutos = String(Math.floor(tempoRestante / 60)).padStart(2, "0");
+        const segundos = String(tempoRestante % 60).padStart(2, "0");
+        cronometroEl.textContent = `${minutos}:${segundos}`;
+
+        if (tempoRestante <= 0) {
+          clearInterval(timer);
+          callback();
+        } else {
+          tempoRestante--;
+        }
+      }, 1000);
+    }
+
+    await carregarConfig();
+
+    onValue(ref(db, "agendamentos"), (snap) => {
+      const data = snap.val() || {};
+      const now = new Date();
+
+      for (let i = 0; i < horarios.length; i++) {
+        const hora = horarios[i];
+        if (data[hora]) {
+          const horaDate = parseHora(hora);
+          const diffSegundos = Math.floor((horaDate - now) / 1000);
+
+          nomeEl.textContent = data[hora].nome.toUpperCase();
+          horarioEl.textContent = hora;
+          localEl.textContent = data[hora].local;
+
+          if (diffSegundos > 90) {
+            statusEl.textContent = "Aguardando...";
+            cronometroEl.textContent = "⏳ " + Math.floor((diffSegundos - 90) / 60) + " min";
+          } else if (diffSegundos > 0) {
+            statusEl.textContent = "🟡 Em breve (1:30)";
+            startCountdown(diffSegundos, () => {
+              statusEl.textContent = "🟢 Em andamento";
+              startCountdown(tempoSessao * 60, () => {
+                statusEl.textContent = "✅ Finalizado";
+                cronometroEl.textContent = "--:--";
+              });
+            });
+          } else {
+            statusEl.textContent = "🟢 Em andamento";
+            const passouSegundos = -diffSegundos;
+            const restante = Math.max(0, tempoSessao * 60 - passouSegundos);
+            startCountdown(restante, () => {
+              statusEl.textContent = "✅ Finalizado";
+              cronometroEl.textContent = "--:--";
+            });
+          }
+
+          break;
+        }
+      }
+    });
+  </script>
+</body>
+</html>

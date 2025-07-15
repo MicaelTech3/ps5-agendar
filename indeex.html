@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Agendar Horário</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="style.css" />
+  <script type="module" src="script.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Agendar Horário</h1>
+
+
+    <label>Nome:</label>
+    <input type="text" id="nome" placeholder="Seu nome" />
+
+    <div class="turno">
+      <label><input type="radio" name="turno" value="manhã" checked> Manhã</label>
+      <label><input type="radio" name="turno" value="tarde"> Tarde</label>
+    </div>
+
+    <label>Local:</label>
+    <select id="local">
+      <option>Arena 1 - PS5TV</option>
+      <option>Arena 2 - PSProjetor</option>
+      <option>Arena 3 - PS5TV</option>
+      <option>Arena 4 - PSProjetor</option>
+    </select>
+
+    <label>Escolha um horário:</label>
+    <div id="horarios" class="horarios-container"></div>
+
+    <button onclick="agendar()">Agendar</button>
+  </div>
+</body>
+</html>

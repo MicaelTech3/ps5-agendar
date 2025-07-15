@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin - Editar Horários</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      background: #0d1117;
+      color: #fff;
+    }
+
+    h1, h2 {
+      color: #00ffc3;
+    }
+
+    .sessao {
+      background: #161b22;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .item input, .item select {
+      flex: 1;
+      padding: 8px;
+      font-size: 1em;
+      margin-right: 10px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    .item button {
+      background: #f44336;
+      border: none;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .adicionar {
+      margin-top: 10px;
+    }
+
+    .adicionar button, .salvar {
+      background: #00ffc3;
+      color: #000;
+      padding: 10px 15px;
+      font-size: 1em;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+    }
+
+    #agenda .agendamento {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 5px 0;
+      background: #222;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    #agenda .agendamento input {
+      width: 90px;
+    }
+
+    #agenda .agendamento select {
+      padding: 4px;
+    }
+
+    .flex {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Admin - Configurações</h1>
+
+  <div class="sessao">
+    <h2>Horários Manhã</h2>
+    <div id="listaManha"></div>
+    <div class="adicionar">
+      <button onclick="adicionarHorario('manha')">+ Adicionar Horário</button>
+    </div>
+  </div>
+
+  <div class="sessao">
+    <h2>Horários Tarde</h2>
+    <div id="listaTarde"></div>
+    <div class="adicionar">
+      <button onclick="adicionarHorario('tarde')">+ Adicionar Horário</button>
+    </div>
+  </div>
+
+  <label>Tempo de cada sessão (min):
+    <input type="number" id="tempoSessao" min="1">
+  </label>
+
+  <button class="salvar" onclick="salvar()">Salvar Configurações</button>
+
+  <div class="sessao">
+    <h2>Agenda dos Clientes</h2>
+    <div id="agenda"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, get, set, remove, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAmKEvmYmAglgxazFIcpSWw6QHzASyJin4",
+      authDomain: "ps5-agenda.firebaseapp.com",
+      databaseURL: "https://ps5-agenda-default-rtdb.firebaseio.com",
+      projectId: "ps5-agenda",
+      storageBucket: "ps5-agenda.appspot.com",
+      messagingSenderId: "6232773262",
+      appId: "1:6232773262:web:79194fb61c8b43b1556fdf"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let horariosManha = [], horariosTarde = [];
+
+    function renderHorarios(lista, containerId) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = "";
+      lista.forEach((horario, index) => {
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+          <input type="time" value="${horario}" onchange="editarHorario('${containerId}', ${index}, this.value)">
+          <button onclick="removerHorario('${containerId}', ${index})">Remover</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    window.adicionarHorario = function(turno) {
+      if (turno === 'manha') horariosManha.push("09:00");
+      else horariosTarde.push("13:00");
+      atualizar();
+    };
+
+    window.removerHorario = function(containerId, index) {
+      if (containerId === 'listaManha') horariosManha.splice(index, 1);
+      else horariosTarde.splice(index, 1);
+      atualizar();
+    };
+
+    window.editarHorario = function(containerId, index, novoValor) {
+      if (containerId === 'listaManha') horariosManha[index] = novoValor;
+      else horariosTarde[index] = novoValor;
+    };
+
+    function atualizar() {
+      renderHorarios(horariosManha, "listaManha");
+      renderHorarios(horariosTarde, "listaTarde");
+    }
+
+    async function carregar() {
+      const snap = await get(ref(db, "config"));
+      if (snap.exists()) {
+        const data = snap.val();
+        horariosManha = data.horariosManha || [];
+        horariosTarde = data.horariosTarde || [];
+        document.getElementById("tempoSessao").value = data.tempoSessao || 17;
+        atualizar();
+      }
+    }
+
+    async function salvar() {
+      const tempo = parseInt(document.getElementById("tempoSessao").value);
+      await set(ref(db, "config"), {
+        horariosManha,
+        horariosTarde,
+        tempoSessao: tempo
+      });
+      alert("Configurações salvas com sucesso!");
+    }
+
+    function carregarAgenda() {
+      const container = document.getElementById("agenda");
+      onValue(ref(db, "agendamentos"), snap => {
+        const data = snap.val() || {};
+        const entries = Object.entries(data);
+        entries.sort(([a], [b]) => a.localeCompare(b));
+
+        container.innerHTML = "";
+
+        entries.forEach(([horario, agendamento]) => {
+          const div = document.createElement("div");
+          div.className = "agendamento";
+          div.innerHTML = `
+            <input type="time" value="${horario}" onchange="atualizarHorario('${horario}', this.value)">
+            <input type="text" value="${agendamento.nome}" onchange="editarCampo('${horario}', 'nome', this.value)">
+            <select onchange="editarCampo('${horario}', 'local', this.value)">
+              <option ${agendamento.local.includes('Arena 1') ? 'selected' : ''}>Arena 1 - PS5TV</option>
+              <option ${agendamento.local.includes('Arena 2') ? 'selected' : ''}>Arena 2 - PSProjetor</option>
+              <option ${agendamento.local.includes('Arena 3') ? 'selected' : ''}>Arena 3 - PS5TV</option>
+              <option ${agendamento.local.includes('Arena 4') ? 'selected' : ''}>Arena 4 - PSProjetor</option>
+            </select>
+            <button onclick="removerAgendamento('${horario}')">Excluir</button>
+          `;
+          container.appendChild(div);
+        });
+      });
+    }
+
+    window.removerAgendamento = async function(horario) {
+      await remove(ref(db, "agendamentos/" + horario));
+    }
+
+    window.editarCampo = async function(horario, campo, valor) {
+      await update(ref(db, "agendamentos/" + horario), {
+        [campo]: valor
+      });
+    }
+
+    window.atualizarHorario = async function(antigo, novo) {
+      const snap = await get(ref(db, "agendamentos/" + antigo));
+      if (!snap.exists()) return;
+      const dados = snap.val();
+      await set(ref(db, "agendamentos/" + novo), dados);
+      await remove(ref(db, "agendamentos/" + antigo));
+    }
+
+    carregar();
+    carregarAgenda();
+    window.salvar = salvar;
+  </script>
+</body>
+</html>
